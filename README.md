@@ -27,6 +27,12 @@ Add the geckodriver to your $PATH. If you are running LINUX
 export PATH="/path/to/geckodriver:$PATH"
 ```
 
+You will also need wkhtmltopdf in order to export the PDF. On Ubuntu, you can run
+```bash
+sudo apt-get install wkhtmltopdf
+```
+or go to https://wkhtmltopdf.org/downloads.html to find the download for Windows/OSx.
+
 The tool can be run using default parameters by just running the script
 ```bash
 python KryxExtractor.py
