@@ -58,9 +58,8 @@ TODO:
 
 # Parameters
 
-| --------------------|-----------------------|------------------- |
 | **NAME**            |   **TYPE**        |   **DESCRIPTION** |
-| --------------------|-----------------------|------------------- |
+| -------------------- |:-----------------------:| -------------------:|
 | start_url           |   str                 |   URL to start crawling from |
 | url_prefix          |   str                 |   URL prefix to replace in target URLs |
 | url_replace         |   str                 |   String to replace URL prefix |
@@ -80,9 +79,4 @@ TODO:
 | version             |   str                 |   Path to export the intermediate PDFs and compiled PDFs |
 | path                |   str                 |   Version string to use |
 | output_filename     |   str                 |   Final filename to use for output |
-| verbose             |   bool                |   Verbose console output |
-|                                                     1/True  -   Basic Output |
-|                                                     2       -   More detailed progress output |
-|                                                     3       -   Function-Level output |
-|                                                     4       -   Output of Parameters |
-|                                                     5       -   DEBUG output |
+| verbose             |   int               |   Verbose console output |
