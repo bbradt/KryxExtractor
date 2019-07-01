@@ -19,42 +19,45 @@ Install the requirements in requirements.txt (better to do so in a virtual envir
     ```
 
 You will need Firefox and the Firefox geckodriver. These can be found here:
+
     https://github.com/mozilla/geckodriver/releases
+
 Add the geckodriver to your $PATH. If you are running LINUX
-    ```bash
-    export PATH="/path/to/geckodriver:$PATH"
-    ```
+```bash
+export PATH="/path/to/geckodriver:$PATH"
+```
 
 The tool can be run using default parameters by just running the script
-    ```bash
-    python KryxExtractor.py
-    ```
+```bash
+python KryxExtractor.py
+```
 or on the python command line
-    ```python
-    extractor = KryxExtractor()
-    extractor.run()
-    ```
+```python
+extractor = KryxExtractor()
+extractor.run()
+```
 
 which will create a PDF file of the exported website.
 To cleanup PDF and HTML pages and just keep the compiled final PDF 
-    ```python
-        extractor = KryxExtractor(keep_pdf=False, keep_html=False)
-        extractor.run()
-    ```
+```python
+extractor = KryxExtractor(keep_pdf=False, keep_html=False)
+extractor.run()
+```
 
 # Changelog
 
-Version 0.0.1
-    Written for Python 3
-    Compiles to PDF from HTML pages
-    Uses Selenium with Firefox as principle driver
-    Omit Beastiary by default
-TODO:
-    Current version does not fix broken links from source HTML
-    Current version does not preserve any formatting/CSS from Kryx
-    Current version does not extract images consistently
-    Current version does not allow for other selenium webdrivers
-    Current version does not support partial crawling (e.g. just the bestiary)
+### v0.0.1 (06/30/2019)
+* Written for Python 3
+* Compiles to PDF from HTML pages
+* Uses Selenium with Firefox as principle driver
+* Omit Beastiary by default
+
+## TODO
+* Current version does not fix broken links from source HTML
+* Current version does not preserve any formatting/CSS from Kryx
+* Current version does not extract images consistently
+* Current version does not allow for other selenium webdrivers
+* Current version does not support partial crawling (e.g. just the bestiary)
 
 # Parameters
 
