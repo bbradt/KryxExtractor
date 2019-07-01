@@ -5,9 +5,9 @@ Version 0.0.1
     Compiles to PDF from HTML pages
     Uses Selenium with Firefox as principle driver
     Omit Beastiary by default
+    Downloads CSS to attempt CSS formatting
 TODO:
     Current version does not fix broken links from source HTML
-    Current version does not preserve any formatting/CSS from Kryx
     Current version does not extract images consistently
     Current version does not allow for other selenium webdrivers
     Current version does not support partial crawling (e.g. just the bestiary)
@@ -19,6 +19,7 @@ import time
 import pdfkit
 import logging
 import selenium
+import urllib.request
 import urllib3
 from bs4 import BeautifulSoup
 from selenium import webdriver
@@ -53,12 +54,13 @@ DEFAULT_IGNORE_URLS = [                                     # URLS which should 
 DEFAULT_HISTORY = None                                      # List of URLS already crawled
 DEFAULT_STACK = None                                        # Stack data structure of URLs to crawls
 DEFAULT_SELENIUM_DRIVER = None                              # Selenium Webdriver to use
-DEFAULT_HTML_REMOVE_TAGS = ['head']                         # Tags to remove from HTML
+DEFAULT_HTML_REMOVE_TAGS = ['header', 'footer']                         # Tags to remove from HTML
 # Output parameters
 DEFAULT_EXPORT_DIR = '.'                                    # Base directory to export in (overwritten if path is specified)
 DEFAULT_PATH = None                                         # Path to export the intermediate PDFs and compiled PDFs
 DEFAULT_VERSION = None                                      # Version string to use
 DEFAULT_OUTPUT_FILENAME = None                              # Final filename to use for output
+DEFAULT_CSS_FILE = ['https://marklenser.com/static/css/8.d54bb455.chunk.css']
 # Other parameters
 LOG_BASIC = 0
 LOG_VERBOSE = 1
@@ -77,8 +79,8 @@ logging.addLevelName(LOG_VVERBOSE, "vverbose")
 logging.addLevelName(LOG_VVVERBOSE, "vvverbose")
 logging.addLevelName(LOG_DEBUG, "debug")
 logging.addLevelName(LOG_PARAMS, "debugparams")
-
-
+HTML_TAGS=tags=["a","abbr","acronym","address","area","b","base","bdo","big","blockquote","body","br","button","caption","cite","code","col","colgroup","dd","del","dfn","div","dl","DOCTYPE","dt","em","fieldset","form","h1","h2","h3","h4","h5","h6","head","html","hr","i","img","input","ins","kbd","label","legend","li","link","map","meta","noscript","object","ol","optgroup","option","p","param","pre","q","samp","script","select","small","span","strong","style","sub","sup","table","tbody","td","textarea","tfoot","th","thead","title","tr","tt","ul","var"]
+CSS_SELECTORS=["color", "font-size", "font-weight", "font-family", "font-style", "font-variant", "line-height", "margin-bottom", "margin-top", "letter-spacing", "text-decoration", "border-bottom", "border-top", ""]
 class KryxEtractor:
     """KryxExtractor
             Scrapes Kryx's website for his current version of Homebrew.
@@ -88,7 +90,7 @@ class KryxEtractor:
             Args:
                 None
             Kwargs:
-                NAME                |   TYPE                |   DESCRIPTION     
+                NAME                |   TYPE                |   DESCRIPTION
                 --------------------|-----------------------|-------------------
                 start_url           |   str                 |   URL to start crawling from
                 url_prefix          |   str                 |   URL prefix to replace in target URLs
@@ -109,6 +111,7 @@ class KryxEtractor:
                 version             |   str                 |   Path to export the intermediate PDFs and compiled PDFs
                 path                |   str                 |   Version string to use
                 output_filename     |   str                 |   Final filename to use for output
+                css_file            |   str                 |   CSS File to use for formatting
                 verbose             |   bool                |   Verbose console output
                                                                     1/True  -   Basic Output
                                                                     2       -   More detailed progress output
@@ -141,11 +144,12 @@ class KryxEtractor:
                  path=DEFAULT_PATH,
                  output_filename=DEFAULT_OUTPUT_FILENAME,
                  verbose=DEFAULT_VERBOSE,
-                 html_remove_tags=DEFAULT_HTML_REMOVE_TAGS
+                 html_remove_tags=DEFAULT_HTML_REMOVE_TAGS,
+                 css_file=DEFAULT_CSS_FILE
                  ):
+        self.start_url = start_url
         self.selenium_driver = selenium_driver
         self._init_webdriver()
-        self.start_url = start_url
         self.ignore_urls = ignore_urls
         self.js_wait_interval = js_wait_interval
         self.page_wait_interval = page_wait_interval
@@ -181,6 +185,7 @@ class KryxEtractor:
         self.output_filename = output_filename
         if self.output_filename is None:
             self.output_filename = "%s_v%s_compiled" % (self.url_replacer, self.version)
+        self.css_file = css_file
         self._print_own_fields()
         self._init_check_types()
 
@@ -188,7 +193,7 @@ class KryxEtractor:
         if self.selenium_driver is None:
             self.selenium_driver = webdriver.Firefox()
         try:
-            self.selenium_driver.get("https://google.com")
+            self.selenium_driver.get(self.start_url)
         except selenium.common.exceptions.InvalidSessionIdException:
             self.selenium_driver = webdriver.Firefox()
         except urllib3.exceptions.MaxRetryError:
@@ -252,6 +257,7 @@ class KryxEtractor:
             self.path = os.path.join(self.export_dir, '%s_v%s' % (self.url_replacer, self.version))
         os.makedirs(self.path, exist_ok=True)
         os.makedirs(os.path.join(self.path, self.html_subdir), exist_ok=True)
+        os.makedirs(os.path.join(self.path, self.html_subdir, 'static', 'css'), exist_ok=True)
         os.makedirs(os.path.join(self.path, self.pdf_subdir), exist_ok=True)
 
     def _init_logger(self):
@@ -304,14 +310,56 @@ class KryxEtractor:
             Args: html_source  (str)    -   string of html source
             Kwargs: None
             Fields: html_remove_tags (contains tags which will be cleaned)
-            Output: html output after desired tags have been removed
+            Output: cleaned, html output after desired tags have been removed
             External State: No change
         """
         soup = BeautifulSoup(html_source, 'html.parser')
         for tag in self.html_remove_tags:
             if hasattr(soup, tag):
                 getattr(soup, tag).decompose()
-        return str(soup)
+        self._hack_css(soup)
+        raw = str(soup)
+        return raw
+
+    def _hack_css(self, soup):
+        """TODO: Get this to work... currently the resulting style changes are quite hideous.
+            Kryx does a lot of CSS rendering inline, so we need to use selenium to
+            grab the CSS elements, and hack them into the HTML.
+        """
+        [s.extract() for s in soup('script')]
+        style_tag = soup.new_tag('style', type='text/css')
+        elemform = "%s { %s } "
+        internalform = "%s: %s; "
+        classes = []
+        for element in soup.find_all(class_=True):
+            classes.extend(element["class"])
+        for tag in HTML_TAGS:
+            try:
+                tagelem = self.selenium_driver.find_element_by_tag_name(tag)
+            except selenium.common.exceptions.NoSuchElementException:
+                continue
+            properties = self.selenium_driver.execute_script('return window.getComputedStyle(arguments[0], null);', tagelem)
+            internaltext = ""
+            for property in properties:
+                if property in CSS_SELECTORS:
+                    value = tagelem.value_of_css_property(property)
+                    if len(value) > 0:
+                        internaltext += internalform % (property, value)
+            style_tag.append(elemform % (tag, internaltext))
+        for tag in classes:
+            try:
+                tagelem = self.selenium_driver.find_element_by_class_name(tag)
+            except selenium.common.exceptions.NoSuchElementException:
+                continue
+            properties = self.selenium_driver.execute_script('return window.getComputedStyle(arguments[0], null);', tagelem)
+            internaltext = ""
+            for property in properties:
+                if property in CSS_SELECTORS:
+                    value = tagelem.value_of_css_property(property)
+                    if len(value) > 0:
+                        internaltext += internalform % (property, value)
+            style_tag.append(elemform % (tag, internaltext))
+        soup.head.append(style_tag)
 
     def get_menuitem_links(self,
                            html_source):
@@ -369,8 +417,8 @@ class KryxEtractor:
             Args: ref (str)     - the reference url to check
             Kwargs: fullref (str) - an additional reference to check
             Fields: ignore_urls, history, stack
-            Output: valid (bool) - is the URL valid  
-            External State: No change         
+            Output: valid (bool) - is the URL valid
+            External State: No change
         """
         valid = ref not in self.ignore_urls + self.history + self.stack
         if fullref is not None:
@@ -399,7 +447,7 @@ class KryxEtractor:
 
     def make_output_filename(self, url, filetype):
         """Create an output filename for a given filetype.
-            Filetypes supported are PDF and HTML. 
+            Filetypes supported are PDF and HTML.
             PDF files are output with a page number in front of them.
             HTML files are just output with the slugified URL.
 
@@ -426,6 +474,7 @@ class KryxEtractor:
             Kwargs: None
             Fields: logger
             Output: html_source, the final html source which is output
+                    new_links, links extracted prior to cleaning
             External State: exported PDF file exists and HTML exists, selenium driver on URL
         """
         filename_pdf = self.make_output_filename(url, 'pdf')
@@ -436,6 +485,7 @@ class KryxEtractor:
             self._init_webdriver()
             self.selenium_driver.get(url)
         html_source = self.selenium_driver.page_source
+        new_links = self.get_links(html_source)
         html_source = self.clean_html(html_source)
         self.logger.log(LOG_VVVERBOSE, "Creating HTML file %s" % filename_html)
         with open(filename_html, 'w', encoding='utf-8') as file:
@@ -445,7 +495,7 @@ class KryxEtractor:
             pdfkit.from_file(filename_html, filename_pdf)
         except OSError as ex:
             pass
-        return html_source
+        return html_source, new_links
 
     def get_latest_version(self):
         """Get the latest version from the changelog. Assumes that the version
@@ -489,6 +539,13 @@ class KryxEtractor:
         action.perform()
         time.sleep(self.js_wait_interval)
 
+    def _retrieve_css(self):
+        for url in self.css_file:
+            filename = url.rsplit('/', 1)[-1]
+            filepath = os.path.join(self.path, self.html_subdir, 'static', 'css', filename)
+            urllib.request.urlretrieve(url, filepath)
+            self.logger.log(LOG_VVVERBOSE, "Retrieved file %s from url %s to path %s" % (filename, url, filepath))
+
     def crawl(self):
         """This function controls all of the actual crawling which is done. Start from the
             starting url, find all of the links available on that first page, and follow them
@@ -515,6 +572,7 @@ class KryxEtractor:
                             pdf pages exist in html_subdir
         """
         self._init_paths()  # init paths again, just in case they've been cleaned up
+        self._retrieve_css()
         try:
             self.init_site_settings()
         except Exception:
@@ -527,8 +585,8 @@ class KryxEtractor:
             url = self.stack[0]
             self.history.append(url)
             self.logger.log(LOG_VERBOSE, ("Exporting URL %s at page %s" % (url, self.history.index(url))))
-            source = self.export_page_from_url(url)
-            new_links = self.get_links(source)
+            source, new_links = self.export_page_from_url(url)
+
             self.logger.log(LOG_VVERBOSE, "FOUND LINKS: %s" % (str(new_links)))
             self.stack.remove(url)
             self.stack = new_links + self.stack
