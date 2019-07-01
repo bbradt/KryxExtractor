@@ -34,6 +34,7 @@ import urllib3
 from bs4 import BeautifulSoup
 from selenium import webdriver
 from PyPDF2 import PdfFileWriter, PdfFileReader
+import KryxLogger
 
 # Default Parameters
 # URL Formatting Parameters
@@ -77,24 +78,14 @@ DEFAULT_VERSION = None                                      # Version string to 
 DEFAULT_OUTPUT_FILENAME = None                              # Final filename to use for output
 DEFAULT_CSS_FILE = ['/static/css/8.d54bb455.chunk.css']
 # Other parameters
-LOG_BASIC = 5
-LOG_VERBOSE = 4
-LOG_VVERBOSE = 3
-LOG_VVVERBOSE = 2
-LOG_DEBUG = 1
-LOG_PARAMS = 0
-DEFAULT_VERBOSE = LOG_PARAMS                                         # Verbose console output
+DEFAULT_VERBOSE = KryxLogger.LOG_VDEBUG                                         # Verbose console output
 DEFAULT_KEEP_HTML = True
 DEFAULT_HTML_SUBDIR = 'html'
 DEFAULT_PDF_SUBDIR = 'pdf'
 DEFAULT_KEEP_PDFS = True
 DEFAULT_STORED_CSS = None
-logging._levelToName
-logging.addLevelName(LOG_VERBOSE, "verbose")
-logging.addLevelName(LOG_VVERBOSE, "vverbose")
-logging.addLevelName(LOG_VVVERBOSE, "vvverbose")
-logging.addLevelName(LOG_DEBUG, "debug")
-logging.addLevelName(LOG_PARAMS, "debugparams")
+
+
 HTML_TAGS = []
 with open("HTML_TAGS.txt", "r") as file:
     for line in file:
@@ -327,9 +318,9 @@ class KryxEtractor:
             Output: None
             External State: all fields printed to logger if logger is set to PARAMS level
         """
-        self.logger.log(LOG_PARAMS, "PARAMETERS FOR CRAWLER\n\t\tNAME\tTYPE\tVALUE")
+        self.logger.vparams("PARAMETERS FOR CRAWLER\n\t\tNAME\tTYPE\tVALUE")
         for k, v in self.__dict__.items():
-            self.logger.log(LOG_PARAMS, '\t\t%s\t%s\t%s' % (k, type(v), str(v)))
+            self.logger.vparams('\t\t%s\t%s\t%s' % (k, type(v), str(v)))
 
     def clean_html(self,
                    html_source,
@@ -341,6 +332,7 @@ class KryxEtractor:
             Output: cleaned, html output after desired tags have been removed
             External State: No change
         """
+        self.logger.vvverbose("Cleaning HTML...")
         soup = BeautifulSoup(html_source, 'html.parser')
         for tag in self.html_remove_tags:
             if hasattr(soup, tag):
@@ -348,7 +340,9 @@ class KryxEtractor:
                     getattr(soup, tag).decompose()
                 except AttributeError:
                     pass
+        self.logger.vvverbose("Downloading images...")
         self._download_images(soup)
+        self.logger.vvverbose("Grabbing CSS...")
         self._hack_css(soup)
         raw = str(soup)
         return raw
@@ -388,6 +382,7 @@ class KryxEtractor:
                         internaltext += internalform % (property, value)
             style_tag.append(elemform % (tag, internaltext))
             self.stored_css[tag] = elemform % ('.'+tag, internaltext)
+        # TODO - consolidate this code
         for tag in classes:
             if tag in self.stored_css.keys():
                 style_tag.append(self.stored_css[tag])
@@ -398,8 +393,6 @@ class KryxEtractor:
                 continue
             properties = self.selenium_driver.execute_script('return window.getComputedStyle(arguments[0], null);', tagelem)
             internaltext = ""
-            if tag == 'hTjrsF':  # TODO: make this not hardcoded
-                internaltext += internalform % ('width', '64rem')
             for property in properties:
                 if property in CSS_SELECTORS:
                     value = tagelem.value_of_css_property(property)
@@ -434,7 +427,7 @@ class KryxEtractor:
             destination_path = self._resolve_static_path(src)
             urllib.request.urlretrieve(url, destination_path)
             image_data = self._resolve_image_base64(destination_path)
-            self.logger.log(LOG_VVVERBOSE, "Retrieved file %s from url %s to path %s" % (src, url, destination_path))
+            self.logger.vvdebug("Retrieved file %s from url %s to path %s" % (src, url, destination_path))
             image['src'] = image_data
 
     def get_menuitem_links(self,
@@ -466,7 +459,7 @@ class KryxEtractor:
             except Exception:
                 self._init_webdriver()
                 sel_button = self.selenium_driver.find_element_by_id(button.get('id'))
-            self.logger.log(LOG_VVVERBOSE, "Found button called %s" % button.get('id'))
+            self.logger.vdebug("Found button called %s" % button.get('id'))
             sel_button.click()
             time.sleep(self.js_wait_interval)
             new_source = self.selenium_driver.page_source
@@ -555,22 +548,32 @@ class KryxEtractor:
         """
         filename_pdf = self.make_output_filename(url, 'pdf')
         filename_html = self.make_output_filename(url, 'html')
+        start = timeit.default_timer()
         try:
             self.selenium_driver.get(url)
         except Exception:
             self._init_webdriver()
             self.selenium_driver.get(url)
         html_source = self.selenium_driver.page_source
+        self.logger.vvdebug("Took %f seconds to navigate to page" % (timeit.default_timer()-start))
+        start = timeit.default_timer()
         new_links = self.get_links(html_source)
+        self.logger.vvdebug("Took %f seconds to grab new links on page" % (timeit.default_timer()-start))
+        start = timeit.default_timer()
         html_source = self.clean_html(html_source)
-        self.logger.log(LOG_VVVERBOSE, "Creating HTML file %s" % filename_html)
+        self.logger.vvdebug("Took %f seconds clean HTML" % (timeit.default_timer()-start))
+        self.logger.vvverbose("Creating HTML file %s" % filename_html)
+        start = timeit.default_timer()
         with open(filename_html, 'w', encoding='utf-8') as file:
             file.write(html_source)
-        self.logger.log(LOG_VVVERBOSE, "Creating PDF file %s" % filename_pdf)
+        self.logger.vvdebug("Took %f seconds write HTML" % (timeit.default_timer()-start))
+        self.logger.vvverbose("Creating PDF file %s" % filename_pdf)
+        start = timeit.default_timer()
         try:
             pdfkit.from_file(filename_html, filename_pdf)
         except OSError as ex:
             pass
+        self.logger.vvdebug("Took %f seconds write PDF" % (timeit.default_timer()-start))
         return html_source, new_links
 
     def get_latest_version(self):
@@ -603,14 +606,14 @@ class KryxEtractor:
             External State: Metric System off on selenium-driven webpage
         """
         sel_button = self.selenium_driver.find_element_by_id('settings')
-        self.logger.log(LOG_VVVERBOSE, "Clicking on settings button...")
+        self.logger.vvverbose("Clicking on settings button...")
         sel_button.click()
         time.sleep(self.js_wait_interval)
         self.selenium_driver.find_elements_by_xpath("//*[contains(text(), 'Metric')]")[1].click()
         time.sleep(self.js_wait_interval)
         action = webdriver.common.action_chains.ActionChains(self.selenium_driver)
         action.move_to_element_with_offset(sel_button, 5, 5)
-        self.logger.log(LOG_VVVERBOSE, "Turning off metric system...")
+        self.logger.vvverbose("Turning off metric system...")
         action.click()
         action.perform()
         time.sleep(self.js_wait_interval)
@@ -621,7 +624,7 @@ class KryxEtractor:
             url = "%s%s" % (self.url_prefix, src)
             filepath = self._resolve_static_path(src)
             urllib.request.urlretrieve(url, filepath)
-            self.logger.log(LOG_VVVERBOSE, "Retrieved file %s from url %s to path %s" % (src, url, filepath))
+            self.logger.vvverbose("Retrieved file %s from url %s to path %s" % (src, url, filepath))
 
     def crawl(self):
         """This function controls all of the actual crawling which is done. Start from the
@@ -657,21 +660,24 @@ class KryxEtractor:
             self.init_site_settings()
         self.stack.append(self.start_url)
         starttime = timeit.default_timer()
-        self.logger.log(LOG_BASIC, "Starting to crawl at %s" % self.start_url)
+        self.logger.basic("Starting to crawl at %s" % self.start_url)
         while len(self.stack) > 0:
+            crawlstart = timeit.default_timer()
             url = self.stack[0]
             self.history.append(url)
-            self.logger.log(LOG_VERBOSE, ("Exporting URL %s at page %s" % (url, self.history.index(url))))
+            self.logger.verbose(("Exporting URL %s at page %s" % (url, self.history.index(url))))
             source, new_links = self.export_page_from_url(url)
 
-            self.logger.log(LOG_VVERBOSE, "FOUND LINKS: %s" % (str(new_links)))
+            self.logger.vvdebug("Found links: %s" % (str(new_links)))
             self.stack.remove(url)
             self.stack = new_links + self.stack
-            self.logger.log(LOG_DEBUG, ("%d pages now left in stack..." % len(self.stack)))
-            self.logger.log(LOG_VVERBOSE, "sleeping for %f seconds..." % (self.page_wait_interval))
+            self.logger.vdebug(("%d pages now left in stack..." % len(self.stack)))
+            crawlend = timeit.default_timer()
+            self.logger.verbose("Exported URL %s in %f seconds" % (url, crawlend-crawlstart))
+            self.logger.vverbose("sleeping for %f seconds..." % (self.page_wait_interval))
             time.sleep(self.page_wait_interval)
         endtime = timeit.default_timer()
-        self.logger.log(LOG_BASIC, "Finished crawling. Took %f seconds" % (endtime-starttime))
+        self.logger.basic("Finished crawling. Took %f seconds" % (endtime-starttime))
         self._crawl_cleanup()
 
     def _crawl_cleanup(self):
@@ -714,12 +720,14 @@ class KryxEtractor:
             Output: None
             External State: logger exists, pdf subdir is removed, final pdf is created
         """
-        self.logger.log(LOG_BASIC, "Exporting pdf...")
+        self.logger.basic("Exporting pdf...")
         pdfs = [self.make_output_filename(url, 'pdf') for url in self.history]
-        self.logger.log(LOG_VERBOSE, ("Found %d pages..." % len(pdfs)))
+        self.logger.verbose(("Found %d pages..." % len(pdfs)))
         output_path = os.path.join(self.path, self.output_filename)
-        self.logger.log(LOG_VERBOSE, "Outputting to path %s..." % output_path)
+        self.logger.verbose("Outputting to path %s..." % output_path)
+        start = timeit.default_timer()
         self.pdf_cat(pdfs, open(output_path, 'wb'))
+        self.logger.vvdebug("Took %f seconds to compiled PDF" % (timeit.default_timer()-start))
         self._export_cleanup()
 
     def _export_cleanup(self):

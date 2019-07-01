@@ -56,6 +56,7 @@ extractor.run()
 * Adds image downloading/encoding
 * Speeds up CSS stylization by avoiding redundant tags
 * Decreased waiting intervals
+* Fixed custom logging levels in separate file `KryxLogger.py`
 
 ### v0.0.1 (06/30/2019)
 * Written for Python 3
@@ -95,4 +96,6 @@ extractor.run()
 | version             |   str                 |   Path to export the intermediate PDFs and compiled PDFs |
 | path                |   str                 |   Version string to use |
 | output_filename     |   str                 |   Final filename to use for output |
-| verbose             |   int               |   Verbose console output |
+| verbose             |   int                 |   Verbose console output |
+| css_file            |   str                 | static url of CSS file to download |
+| stored_css          |   dict[str:str]       | stored CSS for tags and classes |

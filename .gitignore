@@ -3,3 +3,4 @@ env/
 .vscode/
 geckodriver.log
 KRYX_v*/
+__pycache__/
