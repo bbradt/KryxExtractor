@@ -58,31 +58,31 @@ TODO:
 
 # Parameters
 
---------------------|-----------------------|-------------------
-**NAME**            |   **TYPE**        |   **DESCRIPTION**
---------------------|-----------------------|-------------------
-start_url           |   str                 |   URL to start crawling from
-url_prefix          |   str                 |   URL prefix to replace in target URLs
-url_replace         |   str                 |   String to replace URL prefix
-changelog_url       |   str                 |   URL of the changelog
-url_sep_char        |   str                 |   Separating character in URLs
-js_wait_interval    |   int,float           |   Interval to wait for javascript actions to occur
-page_wait_interval  |   int,float           |   Interval to wait between crawling pages
-click_offset        |   int                 |   Offset for clicking off of javascript elements
-hit_buttons         |   list[str]           |   List of button IDs which have already been hit
-button_seek_params  |   list[args]          |   Parameters for finding clickable buttons
-selenium_driver     |   Firefox Webdriver   |   Selenium Webdriver to use
-ignore_urls         |   list[str]           |   URLS which should not be exported or crawled further
-stack               |   list[str]           |   Stack data structure of URLs to crawls
-history             |   list[str]           |   List of URLS already crawled
-html_remove_tags    |   list[str]           |   Tags to remove from HTML
-export_dir          |   str                 |   Base directory to export in (irrelevent if path is specified)
-version             |   str                 |   Path to export the intermediate PDFs and compiled PDFs
-path                |   str                 |   Version string to use
-output_filename     |   str                 |   Final filename to use for output
-verbose             |   bool                |   Verbose console output
-                                                    1/True  -   Basic Output
-                                                    2       -   More detailed progress output
-                                                    3       -   Function-Level output
-                                                    4       -   Output of Parameters
-                                                    5       -   DEBUG output
+| --------------------|-----------------------|------------------- |
+| **NAME**            |   **TYPE**        |   **DESCRIPTION** |
+| --------------------|-----------------------|------------------- |
+| start_url           |   str                 |   URL to start crawling from |
+| url_prefix          |   str                 |   URL prefix to replace in target URLs |
+| url_replace         |   str                 |   String to replace URL prefix |
+| changelog_url       |   str                 |   URL of the changelog |
+| url_sep_char        |   str                 |   Separating character in URLs |
+| js_wait_interval    |   int,float           |   Interval to wait for javascript actions to occur |
+| page_wait_interval  |   int,float           |   Interval to wait between crawling pages |
+| click_offset        |   int                 |   Offset for clicking off of javascript elements |
+| hit_buttons         |   list[str]           |   List of button IDs which have already been hit |
+| button_seek_params  |   list[args]          |   Parameters for finding clickable buttons |
+| selenium_driver     |   Firefox Webdriver   |   Selenium Webdriver to use |
+| ignore_urls         |   list[str]           |   URLS which should not be exported or crawled further |
+| stack               |   list[str]           |   Stack data structure of URLs to crawls |
+| history             |   list[str]           |   List of URLS already crawled |
+| html_remove_tags    |   list[str]           |   Tags to remove from HTML |
+| export_dir          |   str                 |   Base directory to export in (irrelevent if path is specified) |
+| version             |   str                 |   Path to export the intermediate PDFs and compiled PDFs |
+| path                |   str                 |   Version string to use |
+| output_filename     |   str                 |   Final filename to use for output |
+| verbose             |   bool                |   Verbose console output |
+|                                                     1/True  -   Basic Output |
+|                                                     2       -   More detailed progress output |
+|                                                     3       -   Function-Level output |
+|                                                     4       -   Output of Parameters |
+|                                                     5       -   DEBUG output |
