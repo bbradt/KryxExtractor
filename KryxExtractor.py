@@ -211,6 +211,10 @@ class KryxEtractor:
         except selenium.common.exceptions.WebDriverException:
             self.selenium_driver = webdriver.Firefox()
 
+        # self.selenium_driver.maximize_window()
+        self.selenium_driver.set_window_position(0, 0)
+        self.selenium_driver.set_window_size(850, 1100)
+
     def _init_check_types(self):
         """Check all field types upon intialization.
             Args: None
@@ -363,6 +367,8 @@ class KryxEtractor:
                 continue
             properties = self.selenium_driver.execute_script('return window.getComputedStyle(arguments[0], null);', tagelem)
             internaltext = ""
+            if tag == 'hTjrsF':  # TODO: make this not hardcoded
+                internaltext += internalform % ('width', '64rem')
             for property in properties:
                 if property in CSS_SELECTORS:
                     value = tagelem.value_of_css_property(property)
