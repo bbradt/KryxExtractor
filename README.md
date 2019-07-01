@@ -51,14 +51,14 @@ extractor.run()
 * Compiles to PDF from HTML pages
 * Uses Selenium with Firefox as principle driver
 * Omit Beastiary by default
-* Downloads CSS to attempt CSS formatting, but only some tags
+* Downloads CSS to attempt CSS formatting, but only some tags, and in a naive way
 
 ## TODO
 * Current version does not fix broken links from source HTML
 * Current version does not extract images consistently
 * Current version does not allow for other selenium webdrivers
 * Current version does not support partial crawling (e.g. just the bestiary)
-* Fully figure out CSS so the HTML looks near identical to site
+* CSS multiclasses etc, are currently not supported, so certain CSS tags do not work
 
 # Parameters
 

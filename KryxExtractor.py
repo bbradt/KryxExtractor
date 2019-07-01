@@ -1,16 +1,18 @@
 """
 KryxExtractor - Crawl and Export Kryx's DnD 5e website
-Version 0.0.1
-    Written for Python 3
-    Compiles to PDF from HTML pages
-    Uses Selenium with Firefox as principle driver
-    Omit Beastiary by default
-    Downloads CSS to attempt CSS formatting
-TODO:
-    Current version does not fix broken links from source HTML
-    Current version does not extract images consistently
-    Current version does not allow for other selenium webdrivers
-    Current version does not support partial crawling (e.g. just the bestiary)
+### v0.0.1 (06/30/2019)
+* Written for Python 3
+* Compiles to PDF from HTML pages
+* Uses Selenium with Firefox as principle driver
+* Omit Beastiary by default
+* Downloads CSS to attempt CSS formatting, but only some tags, and in a naive way
+
+## TODO
+* Current version does not fix broken links from source HTML
+* Current version does not extract images consistently
+* Current version does not allow for other selenium webdrivers
+* Current version does not support partial crawling (e.g. just the bestiary)
+* CSS multiclasses etc, are currently not supported, so certain CSS tags do not work
 """
 import os
 import re
@@ -79,8 +81,16 @@ logging.addLevelName(LOG_VVERBOSE, "vverbose")
 logging.addLevelName(LOG_VVVERBOSE, "vvverbose")
 logging.addLevelName(LOG_DEBUG, "debug")
 logging.addLevelName(LOG_PARAMS, "debugparams")
-HTML_TAGS=tags=["a","abbr","acronym","address","area","b","base","bdo","big","blockquote","body","br","button","caption","cite","code","col","colgroup","dd","del","dfn","div","dl","DOCTYPE","dt","em","fieldset","form","h1","h2","h3","h4","h5","h6","head","html","hr","i","img","input","ins","kbd","label","legend","li","link","map","meta","noscript","object","ol","optgroup","option","p","param","pre","q","samp","script","select","small","span","strong","style","sub","sup","table","tbody","td","textarea","tfoot","th","thead","title","tr","tt","ul","var"]
-CSS_SELECTORS=["color", "font-size", "font-weight", "font-family", "font-style", "font-variant", "line-height", "margin-bottom", "margin-top", "letter-spacing", "text-decoration", "border-bottom", "border-top", ""]
+HTML_TAGS = []
+with open("HTML_TAGS.txt", "r") as file:
+    for line in file:
+        HTML_TAGS.append(line.strip())
+CSS_SELECTORS = []
+with open("CSS_SELECTORS.txt", "r") as file:
+    for line in file:
+        CSS_SELECTORS.append(line.strip())
+
+
 class KryxEtractor:
     """KryxExtractor
             Scrapes Kryx's website for his current version of Homebrew.
@@ -358,7 +368,7 @@ class KryxEtractor:
                     value = tagelem.value_of_css_property(property)
                     if len(value) > 0:
                         internaltext += internalform % (property, value)
-            style_tag.append(elemform % (tag, internaltext))
+            style_tag.append(elemform % ('.'+tag, internaltext))
         soup.head.append(style_tag)
 
     def get_menuitem_links(self,
