@@ -18,6 +18,8 @@ import os
 import re
 import glob
 import time
+import timeit
+import base64
 import pdfkit
 import logging
 import selenium
@@ -35,8 +37,8 @@ DEFAULT_URL_REPLACER = 'KRYX'                               # String to replace 
 DEFAULT_CHANGELOG_URL = 'https://marklenser.com/changelog'  # URL of the changelog
 DEFAULT_URL_SEP_CHAR = '/'                                  # Character separating URLs
 # Waiting Intervals, set higher to avoid overloading target
-DEFAULT_JS_WAIT_INTERVAL = 1.5                              # Interval to wait for javascript actions to occur
-DEFAULT_PAGE_WAIT_INTERVAL = 3                              # Interval to wait between crawling pages
+DEFAULT_JS_WAIT_INTERVAL = 0.5                              # Interval to wait for javascript actions to occur
+DEFAULT_PAGE_WAIT_INTERVAL = 0.5                              # Interval to wait between crawling pages
 # Button clicking parameters
 DEFAULT_CLICK_OFFSET = -5                                   # Offset for clicking off of javascript elements
 DEFAULT_HIT_BUTTONS = None                                  # List of button IDs which have already been hit
@@ -46,12 +48,17 @@ DEFAULT_IGNORE_URLS = [                                     # URLS which should 
     'https://www.patreon.com/marklenser',
     'https://bitbucket.org/mlenser/tabletop-homebrew/issues',
     '/5e',
-    'https://marklenser.com/5e/changelog',
-    'https://marklenser.com/changelog',
+    '/5e/changelog',
+    '/changelog',
     'https//docs.google.com/spreadsheets/d/17ZeFuwQVvb9DsMseUU8Pb0KxDU7sizhmebp-U7FuzLY/edit#gid=1095279036',
     'https://marklenser.com/5e/character/5e/playing/abilities',
     'https://marklenser.com/5e/character/5e/playing/background',
-    '/5e/monsters'
+    '/5e/monsters',
+    '/5e/themes/spells/all',
+    '/5e/themes/maneuvers/all',
+    '/5e/themes/distribution',
+    '/5e/converters/pathfinder-to-5e',
+    '/5e/converters/we-be-goblins-to-5e'
 ]
 DEFAULT_HISTORY = None                                      # List of URLS already crawled
 DEFAULT_STACK = None                                        # Stack data structure of URLs to crawls
@@ -62,19 +69,20 @@ DEFAULT_EXPORT_DIR = '.'                                    # Base directory to 
 DEFAULT_PATH = None                                         # Path to export the intermediate PDFs and compiled PDFs
 DEFAULT_VERSION = None                                      # Version string to use
 DEFAULT_OUTPUT_FILENAME = None                              # Final filename to use for output
-DEFAULT_CSS_FILE = ['https://marklenser.com/static/css/8.d54bb455.chunk.css']
+DEFAULT_CSS_FILE = ['/static/css/8.d54bb455.chunk.css']
 # Other parameters
-LOG_BASIC = 0
-LOG_VERBOSE = 1
-LOG_VVERBOSE = 1
+LOG_BASIC = 5
+LOG_VERBOSE = 4
+LOG_VVERBOSE = 3
 LOG_VVVERBOSE = 2
-LOG_DEBUG = 3
-LOG_PARAMS = 3
-DEFAULT_VERBOSE = LOG_VVVERBOSE                                         # Verbose console output
+LOG_DEBUG = 1
+LOG_PARAMS = 0
+DEFAULT_VERBOSE = LOG_PARAMS                                         # Verbose console output
 DEFAULT_KEEP_HTML = True
 DEFAULT_HTML_SUBDIR = 'html'
 DEFAULT_PDF_SUBDIR = 'pdf'
 DEFAULT_KEEP_PDFS = True
+DEFAULT_STORED_CSS = None
 logging._levelToName
 logging.addLevelName(LOG_VERBOSE, "verbose")
 logging.addLevelName(LOG_VVERBOSE, "vverbose")
@@ -155,7 +163,8 @@ class KryxEtractor:
                  output_filename=DEFAULT_OUTPUT_FILENAME,
                  verbose=DEFAULT_VERBOSE,
                  html_remove_tags=DEFAULT_HTML_REMOVE_TAGS,
-                 css_file=DEFAULT_CSS_FILE
+                 css_file=DEFAULT_CSS_FILE,
+                 stored_css=None
                  ):
         self.start_url = start_url
         self.selenium_driver = selenium_driver
@@ -194,8 +203,11 @@ class KryxEtractor:
         self.html_remove_tags = html_remove_tags
         self.output_filename = output_filename
         if self.output_filename is None:
-            self.output_filename = "%s_v%s_compiled" % (self.url_replacer, self.version)
+            self.output_filename = "%s_v%s_compiled.pdf" % (self.url_replacer, self.version)
         self.css_file = css_file
+        self.stored_css = stored_css
+        if self.stored_css is None or not type(self.stored_css) is dict:
+            self.stored_css = dict()
         self._print_own_fields()
         self._init_check_types()
 
@@ -330,15 +342,25 @@ class KryxEtractor:
         soup = BeautifulSoup(html_source, 'html.parser')
         for tag in self.html_remove_tags:
             if hasattr(soup, tag):
-                getattr(soup, tag).decompose()
+                try:
+                    getattr(soup, tag).decompose()
+                except AttributeError:
+                    pass
+        self._download_images(soup)
         self._hack_css(soup)
         raw = str(soup)
         return raw
 
     def _hack_css(self, soup):
-        """TODO: Get this to work... currently the resulting style changes are quite hideous.
-            Kryx does a lot of CSS rendering inline, so we need to use selenium to
-            grab the CSS elements, and hack them into the HTML.
+        """Kryx does a lot of CSS rendering inline, so we need to use selenium to
+            grab the CSS elements, and hack them into the HTML. To preserve runtime,
+            we only do this once per element or class, assuming they do not change
+            much between pages. Desired HTML tags are loaded from HTML_TAGS.txt
+            and CSS selectors are loaded from CSS_SELECTORS.txt.
+
+            We use only some CSS selectors because the actual computed selectors
+            may not translate well to a PDF. E.g. taking the fixed width and height
+            selectors is generally not a good idea. 
         """
         [s.extract() for s in soup('script')]
         style_tag = soup.new_tag('style', type='text/css')
@@ -348,6 +370,9 @@ class KryxEtractor:
         for element in soup.find_all(class_=True):
             classes.extend(element["class"])
         for tag in HTML_TAGS:
+            if tag in self.stored_css.keys():
+                style_tag.append(self.stored_css[tag])
+                continue
             try:
                 tagelem = self.selenium_driver.find_element_by_tag_name(tag)
             except selenium.common.exceptions.NoSuchElementException:
@@ -360,7 +385,11 @@ class KryxEtractor:
                     if len(value) > 0:
                         internaltext += internalform % (property, value)
             style_tag.append(elemform % (tag, internaltext))
+            self.stored_css[tag] = elemform % ('.'+tag, internaltext)
         for tag in classes:
+            if tag in self.stored_css.keys():
+                style_tag.append(self.stored_css[tag])
+                continue
             try:
                 tagelem = self.selenium_driver.find_element_by_class_name(tag)
             except selenium.common.exceptions.NoSuchElementException:
@@ -375,7 +404,36 @@ class KryxEtractor:
                     if len(value) > 0:
                         internaltext += internalform % (property, value)
             style_tag.append(elemform % ('.'+tag, internaltext))
+            self.stored_css[tag] = elemform % ('.'+tag, internaltext)
         soup.head.append(style_tag)
+
+    def _resolve_static_path(self, src):
+        destination_path = os.path.normpath('/'.join([os.path.abspath(self.path), self.html_subdir, src])).replace('\\', '/')
+        os.makedirs(os.path.dirname(destination_path), exist_ok=True)
+        return destination_path
+
+    def _resolve_image_base64(self, path):
+        with open(path, 'rb') as file:
+            encoding = base64.b64encode(file.read())
+            url = "data:image/png;base64, %s" % (encoding.decode())
+        return url
+
+    def _download_images(self, soup):
+        images = soup.findAll('img')
+        for image in images:
+            src = image.get('src')
+            if 'data:' in src:
+                continue
+            if 'http' in src:
+                url = src
+                src = 'static/media/%s' % url.rsplit('/', 1)[-1]
+            else:
+                url = "%s%s" % (self.url_prefix, src)
+            destination_path = self._resolve_static_path(src)
+            urllib.request.urlretrieve(url, destination_path)
+            image_data = self._resolve_image_base64(destination_path)
+            self.logger.log(LOG_VVVERBOSE, "Retrieved file %s from url %s to path %s" % (src, url, destination_path))
+            image['src'] = image_data
 
     def get_menuitem_links(self,
                            html_source):
@@ -556,11 +614,12 @@ class KryxEtractor:
         time.sleep(self.js_wait_interval)
 
     def _retrieve_css(self):
-        for url in self.css_file:
-            filename = url.rsplit('/', 1)[-1]
-            filepath = os.path.join(self.path, self.html_subdir, 'static', 'css', filename)
+        for src in self.css_file:
+            #filename = url.rsplit('/', 1)[-1]
+            url = "%s%s" % (self.url_prefix, src)
+            filepath = self._resolve_static_path(src)
             urllib.request.urlretrieve(url, filepath)
-            self.logger.log(LOG_VVVERBOSE, "Retrieved file %s from url %s to path %s" % (filename, url, filepath))
+            self.logger.log(LOG_VVVERBOSE, "Retrieved file %s from url %s to path %s" % (src, url, filepath))
 
     def crawl(self):
         """This function controls all of the actual crawling which is done. Start from the
@@ -595,7 +654,7 @@ class KryxEtractor:
             self._init_webdriver()
             self.init_site_settings()
         self.stack.append(self.start_url)
-        self.history.append(self.start_url)
+        starttime = timeit.default_timer()
         self.logger.log(LOG_BASIC, "Starting to crawl at %s" % self.start_url)
         while len(self.stack) > 0:
             url = self.stack[0]
@@ -609,7 +668,8 @@ class KryxEtractor:
             self.logger.log(LOG_DEBUG, ("%d pages now left in stack..." % len(self.stack)))
             self.logger.log(LOG_VVERBOSE, "sleeping for %f seconds..." % (self.page_wait_interval))
             time.sleep(self.page_wait_interval)
-        self.logger.log(LOG_BASIC, "Finished crawling")
+        endtime = timeit.default_timer()
+        self.logger.log(LOG_BASIC, "Finished crawling. Took %f seconds" % (endtime-starttime))
         self._crawl_cleanup()
 
     def _crawl_cleanup(self):

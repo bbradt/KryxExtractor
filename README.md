@@ -46,6 +46,11 @@ extractor.run()
 
 # Changelog
 
+### v0.0.2 (07/01/2019)
+* Adds image downloading/encoding
+* Speeds up CSS stylization by avoiding redundant tags
+* Decreased waiting intervals
+
 ### v0.0.1 (06/30/2019)
 * Written for Python 3
 * Compiles to PDF from HTML pages
@@ -54,11 +59,12 @@ extractor.run()
 * Downloads CSS to attempt CSS formatting, but only some tags, and in a naive way
 
 ## TODO
-* Current version does not fix broken links from source HTML
-* Current version does not extract images consistently
+* Current version does not fix broken internal links from source HTML
 * Current version does not allow for other selenium webdrivers
 * Current version does not support partial crawling (e.g. just the bestiary)
 * CSS multiclasses etc, are currently not supported, so certain CSS tags do not work
+* Create Table of Contents and Title Page
+* More beautification to fit in an 8.5x11 page more evenly
 
 # Parameters
 
