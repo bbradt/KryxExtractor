@@ -1,0 +1,5 @@
+bin/
+env/
+.vscode/
+geckodriver.log
+KRYX_v*/
