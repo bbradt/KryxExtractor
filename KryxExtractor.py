@@ -581,9 +581,9 @@ class KryxEtractor:
         self.logger.log(LOG_BASIC, "Exporting pdf...")
         pdfs = [self.make_output_filename(url, 'pdf') for url in self.history]
         self.logger.log(LOG_VERBOSE, ("Found %d pages..." % len(pdfs)))
-        output_path = os.path.join(self.path, open(self.output_filename, 'wb'))
+        output_path = os.path.join(self.path, self.output_filename)
         self.logger.log(LOG_VERBOSE, "Outputting to path %s..." % output_path)
-        self.pdf_cat(pdfs, output_path)
+        self.pdf_cat(pdfs, open(output_path, 'wb'))
         self._export_cleanup()
 
     def _export_cleanup(self):
