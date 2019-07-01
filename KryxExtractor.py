@@ -1,6 +1,6 @@
 """
 KryxExtractor - Crawl and Export Kryx's DnD 5e website
-Version 1.0
+Version 0.0.1
     Written for Python 3
     Compiles to PDF from HTML pages
     Uses Selenium with Firefox as principle driver
@@ -9,7 +9,8 @@ TODO:
     Current version does not fix broken links from source HTML
     Current version does not preserve any formatting/CSS from Kryx
     Current version does not extract images consistently
-    
+    Current version does not allow for other selenium webdrivers
+    Current version does not support partial crawling (e.g. just the bestiary)
 """
 import os
 import re
@@ -580,7 +581,7 @@ class KryxEtractor:
         self.logger.log(LOG_BASIC, "Exporting pdf...")
         pdfs = [self.make_output_filename(url, 'pdf') for url in self.history]
         self.logger.log(LOG_VERBOSE, ("Found %d pages..." % len(pdfs)))
-        output_path = os.path.join(self.path, self.output_filename)
+        output_path = os.path.join(self.path, open(self.output_filename, 'wb'))
         self.logger.log(LOG_VERBOSE, "Outputting to path %s..." % output_path)
         self.pdf_cat(pdfs, output_path)
         self._export_cleanup()
@@ -626,9 +627,12 @@ class KryxEtractor:
         self._export_cleanup()
         self._webdriver_cleanup()
 
+    def run(self):
+        self.crawl()
+        self.export_final_pdf()
+        self.cleanup()
+
 
 if __name__ == '__main__':
     extractor = KryxEtractor()
-    extractor.crawl()
-    extractor.export_final_pdf()
-    extractor.cleanup()
+    extractor.run()
