@@ -157,10 +157,12 @@ class KryxEtractor:
                  verbose=DEFAULT_VERBOSE,
                  html_remove_tags=DEFAULT_HTML_REMOVE_TAGS,
                  css_file=DEFAULT_CSS_FILE,
-                 stored_css=None
+                 stored_css=None,
+                 start_selenium=True,
                  ):
         self.start_url = start_url
         self.selenium_driver = selenium_driver
+        self.start_selenium = start_selenium
         self._init_webdriver()
         self.ignore_urls = ignore_urls
         self.js_wait_interval = js_wait_interval
@@ -205,6 +207,8 @@ class KryxEtractor:
         self._init_check_types()
 
     def _init_webdriver(self):
+        if not self.start_selenium:
+            return
         if self.selenium_driver is None:
             self.selenium_driver = webdriver.Firefox()
         try:
@@ -228,7 +232,7 @@ class KryxEtractor:
             Fields: All fields from the object
         """
         self._assert_type(self.start_url, str, 'self.start_url')
-        self._assert_type(self.selenium_driver, webdriver.Firefox, 'self.selenium_driver')
+        self._assert_type(self.selenium_driver, [webdriver.Firefox, type(None)], 'self.selenium_driver')
         self._assert_type(self.ignore_urls, list, 'self.ignore_urls')
         self._assert_type(self.js_wait_interval, [int, float], 'self.js_wait_interval')
         self._assert_type(self.page_wait_interval, [int, float], 'self.page_wait_interval')
@@ -587,6 +591,8 @@ class KryxEtractor:
             Output: version, the latest version which is found
             External State: selenium driver on changelog page
         """
+        if not self.start_selenium:
+            return "0"
         self.selenium_driver.get(self.changelog_url)
         html_source = self.selenium_driver.page_source
         soup = BeautifulSoup(html_source, 'html.parser')

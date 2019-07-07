@@ -1,18 +1,18 @@
 """
 KryxExtractor - Crawl and Export Kryx's DnD 5e website
-### v0.0.2 (07/01/2019)
+# v0.0.2 (07/01/2019)
 * Adds image downloading/encoding
 * Speeds up CSS stylization by avoiding redundant tags
 * Decreased waiting intervals
 
-### v0.0.1 (06/30/2019)
+# v0.0.1 (06/30/2019)
 * Written for Python 3
 * Compiles to PDF from HTML pages
 * Uses Selenium with Firefox as principle driver
 * Omit Beastiary by default
 * Downloads CSS to attempt CSS formatting, but only some tags, and in a naive way
 
-## TODO
+# TODO
 * Current version does not fix broken internal links from source HTML
 * Current version does not allow for other selenium webdrivers
 * Current version does not support partial crawling (e.g. just the bestiary)
@@ -88,12 +88,13 @@ class KryxSpellExtractor(KryxExtractor.KryxEtractor):
                  csv_subdir=DEFAULT_CSV_SUBDIR,
                  column_order=DEFAULT_COLUMN_ORDER,
                  dest_columns=DEFAULT_DEST_COLUMNS,
-                 url_replacer=DEFAULT_URL_REPLACE
+                 url_replacer=DEFAULT_URL_REPLACE,
+                 **kwargs
                  ):
         self.csv_subdir = csv_subdir
         self.column_order = column_order
         self.dest_columns = dest_columns
-        super(KryxSpellExtractor, self).__init__(start_url=start_url, url_replacer=url_replacer)
+        super(KryxSpellExtractor, self).__init__(start_url=start_url, url_replacer=url_replacer, **kwargs)
 
     def _init_paths(self):
         """Initialize the extraction paths. i.e. create them if they don't exist
@@ -131,7 +132,7 @@ class KryxSpellExtractor(KryxExtractor.KryxEtractor):
                     if key == 'power_sources':
                         row[key] = row[key].replace(',', ';')
             else:
-                row['description'] = tr.text
+                row['description'] = str(tr)
                 for rkey in self.dest_columns:
                     if rkey not in row.keys():
                         row[rkey] = None
@@ -195,23 +196,46 @@ class KryxSpellExtractor(KryxExtractor.KryxEtractor):
 
     def clean_csv(self,
                   csv_file="D:\\Dropbox\\BRAD\\python\\kryx_version\\KRYX_SPELLS_v13.0.0-beta-5\\csv\\KRYX_SPELLS.csv",
-                  csv_out="D:\\Dropbox\\BRAD\\python\\kryx_version\\KRYX_SPELLS_v13.0.0-beta-5\\csv\\KRYX_SPELLS_cleaned.csv"):
+                  csv_out="D:\\Dropbox\\Campaigns\\falloutflorida\\backend\\media\\notes\\spells_original.csv"):
         df = pandas.read_csv(csv_file)
+        df = df.where((pandas.notnull(df)), None)
         newdf = []
         for index, row in df.iterrows():
             description = row['description']
+            row.pop('target')
             name = row['name']
             mana = row['mana']
             cast_time = row.pop('cast time')
             row['cast_time'] = cast_time
-            badslug = "%s%s" % (name, mana)
+
             if "Augment" in description:
-                augmentstr = description[description.index("Augment"):]
-                row['augmentation'] = augmentstr.replace("Augment", "")
-            cut_description = description.replace(augmentstr, "").replace(badslug, "").replace('concentration, ', '').replace('(ritual)', '')
+                endtag = "</div>"
+                if "</p></div>" in description:
+                    endtag = "</p>" + endtag
+                elif "</ul></div>" in description:
+                    endtag = "</ul></div>"
+                else:
+                    input(("UHOH", description))
+                augmentstr = description[description.index("<h5"):(description.index(endtag)+4)]
+                row['augmentation'] = augmentstr
+            cut_description = description.replace(augmentstr, "").replace('concentration, ', '').replace('(ritual)', '')
+
+            damage = None
             damages = re.search(r"[1-9]d[1-9] [a-z\s].*? damage", cut_description)
             if damages is not None:
                 row['damage'] = damages.group(0)
+            damage = row.pop('damage')
+            if damage is not None and len(damage.split()) == 3:
+                dice, dtype, _ = damage.split()[:]
+                dicequant, dicetype = dice.split('d')[:]
+                row['damage.dice_quantity'] = dicequant
+                row['damage.dice_type'] = dicetype
+                row['damage.damage_type'] = dtype
+            else:
+                row['damage.dice_quantity'] = None
+                row['damage.dice_type'] = None
+                row['damage.damage_type'] = None
+
             ranges = re.search(r"within [1-9].*? feet", cut_description)
             if ranges is not None:
                 row['range'] = ranges.group(0).replace('within ', '')
@@ -225,33 +249,63 @@ class KryxSpellExtractor(KryxExtractor.KryxEtractor):
             saving_throws = re.search(r"[A-Z][a-z]*.? saving throw", cut_description)
             if saving_throws is not None:
                 row['save'] = saving_throws.group(0)
-            durations = re.search(r"[1-9] [a-z]*.?\/mana", cut_description)
-            if durations is not None:
-                row['duration'] = durations.group(0)
-            else:
-                durations = re.search(r"[1-9] hour(s|)", cut_description)
+
+            duration_regexs = [
+                r"[1-9] [a-z]*.?\/mana",
+                r"[1-9] hour(s|)",
+                r"[1-9] minute(s|)",
+                r"[1-9] mile(s|)",
+                r"[1-9] round(s|)",
+                r"(until|Until)[\sA-Za-z]*.? turn"
+            ]
+            found = False
+            for duration_regex in duration_regexs:
+                durations = re.search(duration_regex, cut_description)
                 if durations is not None:
                     row['duration'] = durations.group(0)
-                else:
-                    durations = re.search(r"[1-9] minute(s|)", cut_description)
-                    if durations is not None:
-                        row['duration'] = durations.group(0)
+                    found = True
+                    break
+            if not found:
+                row['duration'] = 'instantaneous'
+            # if 'As' in cut_description:
+            #    cut_description = cut_description[cut_description.index('As'):]
 
-            durations = re.search(r"[1-9] round(s|)", cut_description)
-            if durations is not None:
-                row['duration'] = durations.group(0)
-                cut_description = cut_description.replace(row['duration'], ' ' + row['duration']+' ')
-            if 'As' in cut_description:
-                cut_description = cut_description[cut_description.index('As'):]
+            if row['augmentation'] is not None:
+                clean = re.compile(r'<div.*?>')
+                row['augmentation'] = re.sub(clean, '', row['augmentation'])
+                clean = re.compile(r'</div.*?>')
+                row['augmentation'] = re.sub(clean, '', row['augmentation'])
+            clean = re.compile(r'<div.*?>')
+            cut_description = re.sub(clean, '', cut_description)
+            clean = re.compile(r'</div.*?>')
+            cut_description = re.sub(clean, '', cut_description)
+            clean = re.compile(r'(?i)<tr[^>]*>')
+            cut_description = re.sub(clean, '', cut_description)
+            clean = re.compile(r'(?i)</tr[^>]*>')
+            cut_description = re.sub(clean, '', cut_description)
+            clean = re.compile(r'(?i)<td[^>]*>')
+            cut_description = re.sub(clean, '', cut_description)
+            clean = re.compile(r'(?i)</td[^>]*>')
+            cut_description = re.sub(clean, '', cut_description)
+            clean = re.compile(r'(?i)<h4[^>]*>%s</h4>%s' % (name, mana))
+            cut_description = re.sub(clean, '', cut_description)
+            if row['augmentation'] is not None:
+                clean = re.compile(r'<h5 class="sc-fjdhpX gtpEVG">Augment</h5>')
+                row['augmentation'] = re.sub(clean, '', row['augmentation'])
+
+            cut_description = cut_description.replace('â€™', '\'')
             row['description'] = cut_description
+            row['cast_range'] = row.pop('range')
+            row['spell_save'] = row.pop('save')
+            row['spell_theme'] = row.pop('theme')
             newdf.append(row)
-        pandas.DataFrame(newdf).to_csv(csv_out)
+        pandas.DataFrame(newdf).to_csv(csv_out, index=False)
 
     def run(self):
         self.crawl()
 
 
 if __name__ == '__main__':
-    extractor = KryxSpellExtractor()
+    extractor = KryxSpellExtractor(start_selenium=False)
     # extractor.run()
     extractor.clean_csv()
